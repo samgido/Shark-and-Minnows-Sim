@@ -6,16 +6,17 @@ import "core:math/rand"
 
 Fish :: struct {
 	pos: rl.Vector2,
-	comfort: f32,
-	color: rl.Color
+	color: rl.Color, 
+	shark: bool
 }
 
 movement_coefficient: f32 = .01
+shark_scare_multiplier: f32 = 25
 
-fish_count := 50
+fish_count := 200
 fish_size: f32 = 3.0
 
-fish_comfort_distance: f32 = 50
+fish_comfort_distance: f32 = 20
 fish_comfort_range: f32 = fish_comfort_distance * 3
 
 fish_start_x := 500
@@ -30,8 +31,8 @@ main :: proc() {
 
 	mouse_fish: Fish = Fish {
 		rl.Vector2 { 0, 0 },
-		10, 
-		rl.WHITE
+		rl.WHITE, 
+		true
 	}
 
 	append(&fishes, mouse_fish)
@@ -45,8 +46,8 @@ main :: proc() {
 				fish_x,
 				fish_y
 			},
-			10,
-			get_random_color()
+			get_random_color(),
+			false
 		}
 
 		append(&fishes, fish)
@@ -60,36 +61,56 @@ main :: proc() {
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.BLACK)	
 
+		{ // Keyboard input
+			keycode_pressed := rl.GetKeyPressed()
+
+			#partial switch keycode_pressed {
+
+			}	
+		}
+
+		{ // Mouse input
+			if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+				new_fish: Fish = Fish {
+					// +2 here becuase they're sticking to the mouse fish
+					rl.Vector2 { cast(f32)rl.GetMouseX() + 2, cast(f32)rl.GetMouseY() + 2}, 
+					get_random_color(),
+					false
+				}
+
+				append(&fishes, new_fish)
+			}
+		}
+
+		main_processing(&fishes, &average_fish_position, &timer)
+
+		rl.EndDrawing()
+	}
+
+	rl.CloseWindow()
+}
+
+main_processing :: proc(fishes: ^[dynamic]Fish, average_fish_position: ^rl.Vector2, timer: ^f32) {
 		// Draw all fish 
 		for i := 0; i < len(fishes); i += 1 {
 			fish_x := cast(i32)fishes[i].pos.x
 			fish_y := cast(i32)fishes[i].pos.y
 
 			rl.DrawCircle(fish_x, fish_y, fish_size, fishes[i].color)
-
-			// OPTIONAL: Draw fish comfort labels
-			// comfort_label: string = fmt.aprint(fishes[i].comfort)
-			// 	// Converting string -> [^]u8 -> cstring, see odin overview
-			// rl.DrawText(cstring(raw_data(comfort_label)), fish_x, fish_y + 5, 12, rl.WHITE)
 		}
 
 		// Call Update
-		timer += rl.GetFrameTime()
+		timer^ += rl.GetFrameTime()
 
-		if (timer > 0.1 || true) {
-			average_fish_position := update(&fishes)
+		if (timer^ > 0.1 || true) {
+			average_fish_position := update(fishes)
 
-			timer = 0
+			timer^ = 0
 		}
 
 		fishes[0].pos = rl.Vector2 { cast(f32)rl.GetMouseX(), cast(f32)rl.GetMouseY() }
 
 		rl.DrawCircle(cast(i32)average_fish_position.x, cast(i32)average_fish_position.y, 5, rl.WHITE)
-
-		rl.EndDrawing()
-	}
-
-	rl.CloseWindow()
 }
 
 update :: proc(fishes: ^[dynamic]Fish) -> rl.Vector2 {
@@ -99,7 +120,7 @@ update :: proc(fishes: ^[dynamic]Fish) -> rl.Vector2 {
 	for i := 1; i < len(fishes); i += 1 {
 		current_fish := fishes[i]
 
-		closest_position: rl.Vector2
+		closest_fish: Fish
 		closest_distance: f32 = 10000
 		for j := 0; j < len(fishes); j += 1 {
 			if (j != i) {
@@ -107,14 +128,18 @@ update :: proc(fishes: ^[dynamic]Fish) -> rl.Vector2 {
 
 				if (distance < closest_distance) {
 					closest_distance = distance
-					closest_position = fishes[j].pos
+					closest_fish = fishes[j]
 				}
 			}
 		}
 
 		if (closest_distance < fish_comfort_distance) { // Too close, move away from closest fish
-			movement: rl.Vector2 = closest_position - current_fish.pos
+			movement: rl.Vector2 = closest_fish.pos - current_fish.pos
 			movement *= -1 * movement_coefficient
+
+			if closest_fish.shark {
+				movement *= shark_scare_multiplier
+			}
 
 			fishes[i].pos = current_fish.pos + movement
 		} else if (rl.Vector2Distance(current_fish.pos, average_pos) > (fish_comfort_distance + fish_comfort_range)) { // Too far away, move towards average postion
