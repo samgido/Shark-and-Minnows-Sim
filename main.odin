@@ -10,14 +10,14 @@ Fish :: struct {
 	shark: bool
 }
 
-movement_coefficient: f32 = .01
-shark_scare_multiplier: f32 = 25
+movement_coefficient: f32 = .02
+shark_scare_multiplier: f32 = 100
 
-fish_count := 200
+fish_count := 300
 fish_size: f32 = 3.0
 
 fish_comfort_distance: f32 = 20
-fish_comfort_range: f32 = fish_comfort_distance * 3
+fish_comfort_range: f32 = fish_comfort_distance * 2
 
 fish_start_x := 500
 fish_start_y := 300
@@ -28,29 +28,30 @@ main :: proc() {
 
 	// Initialize fish collection
 	fishes: [dynamic]Fish
-
-	mouse_fish: Fish = Fish {
-		rl.Vector2 { 0, 0 },
-		rl.WHITE, 
-		true
-	}
-
-	append(&fishes, mouse_fish)
-
-	for i := 0; i < fish_count; i += 1 {
-		fish_x := cast(f32)fish_start_x + ( (rand.float32() - .5) * cast(f32)fish_start_variance )
-		fish_y := cast(f32)fish_start_y + ( (rand.float32() - .5) * cast(f32)fish_start_variance )
-
-		fish := Fish {
-			rl.Vector2 {
-				fish_x,
-				fish_y
-			},
-			get_random_color(),
-			false
+	{
+		mouse_fish: Fish = Fish {
+			rl.Vector2 { 0, 0 },
+			rl.WHITE, 
+			true
 		}
 
-		append(&fishes, fish)
+		append(&fishes, mouse_fish)
+
+		for i := 0; i < fish_count; i += 1 {
+			fish_x := cast(f32)fish_start_x + ( (rand.float32() - .5) * cast(f32)fish_start_variance )
+			fish_y := cast(f32)fish_start_y + ( (rand.float32() - .5) * cast(f32)fish_start_variance )
+
+			fish := Fish {
+				rl.Vector2 {
+					fish_x,
+					fish_y
+				},
+				get_random_color(),
+				false
+			}
+
+			append(&fishes, fish)
+		}
 	}
 
 	timer: f32 = 0
@@ -91,26 +92,26 @@ main :: proc() {
 }
 
 main_processing :: proc(fishes: ^[dynamic]Fish, average_fish_position: ^rl.Vector2, timer: ^f32) {
-		// Draw all fish 
-		for i := 0; i < len(fishes); i += 1 {
-			fish_x := cast(i32)fishes[i].pos.x
-			fish_y := cast(i32)fishes[i].pos.y
+	// Draw all fish 
+	for i := 0; i < len(fishes); i += 1 {
+		fish_x := cast(i32)fishes[i].pos.x
+		fish_y := cast(i32)fishes[i].pos.y
 
-			rl.DrawCircle(fish_x, fish_y, fish_size, fishes[i].color)
-		}
+		rl.DrawCircle(fish_x, fish_y, fish_size, fishes[i].color)
+	}
 
-		// Call Update
-		timer^ += rl.GetFrameTime()
+	// Call Update
+	timer^ += rl.GetFrameTime()
 
-		if (timer^ > 0.1 || true) {
-			average_fish_position := update(fishes)
+	if (timer^ > 0.1 || true) {
+		average_fish_position := update(fishes)
 
-			timer^ = 0
-		}
+		timer^ = 0
+	}
 
-		fishes[0].pos = rl.Vector2 { cast(f32)rl.GetMouseX(), cast(f32)rl.GetMouseY() }
+	fishes[0].pos = rl.Vector2 { cast(f32)rl.GetMouseX(), cast(f32)rl.GetMouseY() }
 
-		rl.DrawCircle(cast(i32)average_fish_position.x, cast(i32)average_fish_position.y, 5, rl.WHITE)
+	rl.DrawCircle(cast(i32)average_fish_position.x, cast(i32)average_fish_position.y, 5, rl.WHITE)
 }
 
 update :: proc(fishes: ^[dynamic]Fish) -> rl.Vector2 {
@@ -134,17 +135,44 @@ update :: proc(fishes: ^[dynamic]Fish) -> rl.Vector2 {
 		}
 
 		if (closest_distance < fish_comfort_distance) { // Too close, move away from closest fish
-			movement: rl.Vector2 = closest_fish.pos - current_fish.pos
-			movement *= -1 * movement_coefficient
+			/* OLD METHOD
+
+			// 	movement: rl.Vector2 = closest_fish.pos - current_fish.pos
+			// 	// movement *= -1 * movement_coefficient
+
+			// 	movement_x := fish_comfort_distance - abs(movement.x)
+			// 	if (movement.x < 0) {
+			// 		movement_x *= -1
+			// 	}
+			// 	movement_x *= movement_coefficient
+
+			// 	movement_y := fish_comfort_distance - abs(movement.y)
+			// 	if (movement.y < 0) {
+			// 		movement_y *= -1
+			// 	}
+			// 	movement_y *= movement_coefficient
+
+			// 	if closest_fish.shark {
+			// 		// movement *= shark_scare_multiplier
+			// 		movement_x *= shark_scare_multiplier
+			// 		movement_y *= shark_scare_multiplier
+			// 	}
+
+			// 	// fishes[i].pos = current_fish.pos + movement
+			// 	fishes[i].pos = current_fish.pos + rl.Vector2 {movement_x, movement_y}
+			*/
+
+			movement_direction: rl.Vector2 = -1 * rl.Vector2Normalize(closest_fish.pos - current_fish.pos)
+			movement_magnitude := (fish_comfort_distance - closest_distance) * movement_coefficient
 
 			if closest_fish.shark {
-				movement *= shark_scare_multiplier
+				movement_magnitude *= shark_scare_multiplier
 			}
 
-			fishes[i].pos = current_fish.pos + movement
+			fishes[i].pos = fishes[i].pos + (movement_direction * movement_magnitude)
 		} else if (rl.Vector2Distance(current_fish.pos, average_pos) > (fish_comfort_distance + fish_comfort_range)) { // Too far away, move towards average postion
 			movement: rl.Vector2 = average_pos - current_fish.pos
-			movement *= movement_coefficient
+			movement *= movement_coefficient 
 
 			fishes[i].pos = current_fish.pos + movement
 		}
